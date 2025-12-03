@@ -1,0 +1,15 @@
+# --- Archivos de configuración secretos ---
+.env
+
+# --- Archivos compilados de Python (Basura) ---
+__pycache__/
+*.pyc
+
+# --- Entornos virtuales (Si usas venv) ---
+venv/
+env/
+.venv/
+
+# --- Configuración del sistema ---
+.DS_Store
+Thumbs.db
