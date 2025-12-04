@@ -33,7 +33,7 @@ class Administrador(Empleado):
             return None
     
     # Metodo Departamento
-    def crearDepartamento(self, idDepartamento:int, nombre:str, gerente:Empleado, empleados:list[Empleado] = []):
+    def crearDepartamento(self, idDepartamento:int, nombre:str, gerente:'Empleado|None' = None, empleados:list[Empleado] = []):
         temp = Departamento(idDepartamento, nombre, gerente, empleados)
 
         try:

@@ -303,6 +303,118 @@ def db_listar_administradores():
         conn.close()
 
 
+def db_listar_todos_departamentos():
+    """
+    Retorna una lista de todos los departamentos con info del gerente.
+    """
+    conn = get_connection()
+    if not conn:
+        print("Error: No se pudo conectar a la BD para listar departamentos")
+        return []
+    
+    cursor = conn.cursor()
+    
+    try:
+        cursor.execute("""
+            SELECT d.idDepartamento, d.nombre, u.nombre
+            FROM departamentos d
+            LEFT JOIN empleados e ON d.idgerenteresponsable = e.idEmpleado
+            LEFT JOIN usuarios u ON e.idUsuario = u.idUsuario
+            ORDER BY d.idDepartamento
+        """)
+        departamentos = []
+        for row in cursor.fetchall():
+            departamentos.append({
+                'idDepartamento': row[0],
+                'nombre': row[1],
+                'gerente': row[2] or "Sin Gerente"
+            })
+        print(f"Departamentos encontrados: {len(departamentos)}")
+        return departamentos
+    except oracledb.DatabaseError as e:
+        print(f"Error DB departamentos: {e}")
+        return []
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def db_listar_todos_empleados():
+    """
+    Retorna una lista de todos los empleados con info del departamento.
+    """
+    conn = get_connection()
+    if not conn:
+        print("Error: No se pudo conectar a la BD para listar empleados")
+        return []
+    
+    cursor = conn.cursor()
+    
+    try:
+        cursor.execute("""
+            SELECT e.idEmpleado, u.nombre, u.correo, e.salario, d.nombre as depto
+            FROM empleados e
+            JOIN usuarios u ON e.idUsuario = u.idUsuario
+            LEFT JOIN departamentos d ON e.idDepartamento = d.idDepartamento
+            ORDER BY e.idEmpleado
+        """)
+        empleados = []
+        for row in cursor.fetchall():
+            empleados.append({
+                'idEmpleado': row[0],
+                'nombre': row[1],
+                'correo': row[2],
+                'salario': row[3],
+                'departamento': row[4] or "Sin Depto"
+            })
+        print(f"Empleados encontrados: {len(empleados)}")
+        return empleados
+    except oracledb.DatabaseError as e:
+        print(f"Error DB empleados: {e}")
+        return []
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def db_listar_todos_proyectos():
+    """
+    Retorna una lista de todos los proyectos.
+    """
+    conn = get_connection()
+    if not conn:
+        print("Error: No se pudo conectar a la BD para listar proyectos")
+        return []
+    
+    cursor = conn.cursor()
+    
+    try:
+        cursor.execute("""
+            SELECT p.idProyecto, p.nombre, p.fechaInicioProyecto, p.descripcion,
+                   (SELECT COUNT(*) FROM proyecto_empleados pe WHERE pe.idProyecto = p.idProyecto) as numEmpleados
+            FROM proyectos p
+            ORDER BY p.idProyecto
+        """)
+        proyectos = []
+        for row in cursor.fetchall():
+            fecha = row[2].strftime("%Y-%m-%d") if row[2] else "N/A"
+            proyectos.append({
+                'idProyecto': row[0],
+                'nombre': row[1],
+                'fechaInicio': fecha,
+                'descripcion': row[3] or "",
+                'numEmpleados': row[4] or 0
+            })
+        print(f"Proyectos encontrados: {len(proyectos)}")
+        return proyectos
+    except oracledb.DatabaseError as e:
+        print(f"Error DB proyectos: {e}")
+        return []
+    finally:
+        cursor.close()
+        conn.close()
+
+
 # =============================================================================
 # --- FUNCIONES DE INDICADORES ECONÓMICOS ---
 # =============================================================================
@@ -970,10 +1082,10 @@ def db_buscar_admin_completo(id_empleado_admin: int):
 
 # --- 2. Métodos de Creación (INSERT) ---
 
-def db_crear_empleado(id_usuario: str, empleado_obj, id_depto: int):
-    #pendiente
+def db_crear_empleado(id_usuario: str, empleado_obj, id_depto: 'int|None' = None):
     """
     Crea un usuario y un empleado.
+    El departamento es opcional (puede ser None).
     (Método: Empleado.crearEmpleado)
     """
     conn = get_connection()
@@ -993,6 +1105,7 @@ def db_crear_empleado(id_usuario: str, empleado_obj, id_depto: int):
         INSERT INTO empleados (idEmpleado, fechaInicioContrato, salario, idUsuario, idDepartamento)
         VALUES (:1, TO_DATE(:2, 'DD/MM/YYYY'), :3, :4, :5)
         """
+        # id_depto puede ser None para empleados sin departamento
         datos_empleado = (empleado_obj.idEmpleado, empleado_obj.fechaInicioContrato,
                           empleado_obj.salario, id_usuario, id_depto)
         cursor.execute(sql_empleado, datos_empleado)
@@ -1071,8 +1184,11 @@ def db_crear_proyecto(id_proyecto: int, proyecto_obj):
     finally:
         cursor.close()
         conn.close()
-def db_crear_departamento(id_depto: int, departamento_obj):
 
+def db_crear_departamento(id_depto: int, departamento_obj):
+    """
+    Crea un departamento. El gerente es opcional (puede ser None).
+    """
     conn = get_connection()
     if not conn: return
     cursor = conn.cursor()
@@ -1082,13 +1198,17 @@ def db_crear_departamento(id_depto: int, departamento_obj):
         INSERT INTO departamentos (idDepartamento, nombre, idGerenteResponsable) 
         VALUES (:1, :2, :3)
         """
-        datos_depto = (id_depto, departamento_obj.nombre, departamento_obj.gerente.idEmpleado)
+        # El gerente puede ser None
+        id_gerente = departamento_obj.gerente.idEmpleado if departamento_obj.gerente else None
+        datos_depto = (id_depto, departamento_obj.nombre, id_gerente)
         cursor.execute(sql_depto, datos_depto)
         
         conn.commit()
+        return True
     except oracledb.DatabaseError as e:
         print(f"Error al crear departamento: {e}")
         conn.rollback()
+        return False
     finally:
         cursor.close()
         conn.close()

@@ -73,23 +73,36 @@ def cambiar_frame(frame_destino, frame_origen=None, funcion_limpieza=None):
 def crear_popup_lista(titulo, datos, encabezado):
     """
     Genera una ventana emergente genérica para mostrar listas.
+    Usa fuente monoespaciada para alinear columnas.
     """
     popup = tk.Toplevel(ventana)
     popup.title(titulo)
-    popup.geometry("450x400")
+    popup.geometry("600x450")
     popup.grab_set() # Bloquea la ventana principal
 
     frame_lista = tk.Frame(popup)
     frame_lista.pack(pady=10, padx=10, fill="both", expand=True)
 
-    scrollbar = tk.Scrollbar(frame_lista, orient="vertical")
-    lista_widget = tk.Listbox(frame_lista, yscrollcommand=scrollbar.set, font=FONT_TEXTO)
-    scrollbar.config(command=lista_widget.yview)
-    scrollbar.pack(side="right", fill="y")
+    # Scrollbars vertical y horizontal
+    scrollbar_y = tk.Scrollbar(frame_lista, orient="vertical")
+    scrollbar_x = tk.Scrollbar(frame_lista, orient="horizontal")
+    
+    # Usar fuente monoespaciada (Consolas) para alinear columnas
+    lista_widget = tk.Listbox(frame_lista, 
+                               yscrollcommand=scrollbar_y.set,
+                               xscrollcommand=scrollbar_x.set,
+                               font=("Consolas", 10),
+                               width=70)
+    
+    scrollbar_y.config(command=lista_widget.yview)
+    scrollbar_x.config(command=lista_widget.xview)
+    
+    scrollbar_y.pack(side="right", fill="y")
+    scrollbar_x.pack(side="bottom", fill="x")
     lista_widget.pack(side="left", fill="both", expand=True)
 
     lista_widget.insert(tk.END, encabezado)
-    lista_widget.insert(tk.END, "-" * 50)
+    lista_widget.insert(tk.END, "-" * 70)
 
     if not datos:
         lista_widget.insert(tk.END, "No hay datos para mostrar.")
@@ -462,27 +475,35 @@ def procesar_busqueda_editar_empleado():
 # --- Departamentos ---
 
 def accion_crear_departamento():
-    id_str = entry_crear_depto_id.get()
-    nombre = entry_crear_depto_nombre.get()
-    id_gerente_str = entry_crear_depto_gerente.get()
+    id_str = entry_crear_depto_id.get().strip()
+    nombre = entry_crear_depto_nombre.get().strip()
+    id_gerente_str = entry_crear_depto_gerente.get().strip()
 
-    if not (id_str and nombre and id_gerente_str):
-        lbl_msg_crear_depto.config(text="Faltan datos", fg=COLOR_TEXTO_ERROR)
+    if not (id_str and nombre):
+        lbl_msg_crear_depto.config(text="ID y Nombre son obligatorios", fg=COLOR_TEXTO_ERROR)
         return
 
     try:
         id_d = int(id_str)
-        id_g = int(id_gerente_str)
         
-        gerente = dbFunciones.db_buscar_empleado_por_id(id_g)
-        if gerente and admin_logeado is not None:
+        # Gerente es opcional
+        gerente = None
+        if id_gerente_str:
+            id_g = int(id_gerente_str)
+            gerente = dbFunciones.db_buscar_empleado_por_id(id_g)
+            if not gerente:
+                lbl_msg_crear_depto.config(text="El gerente especificado no existe", fg=COLOR_TEXTO_ERROR)
+                return
+        
+        if admin_logeado is not None:
             if admin_logeado.crearDepartamento(id_d, nombre, gerente):
-                lbl_msg_crear_depto.config(text="Departamento Creado", fg=COLOR_TEXTO_EXITO)
+                msg = "Departamento Creado" if gerente else "Departamento Creado (sin gerente)"
+                lbl_msg_crear_depto.config(text=msg, fg=COLOR_TEXTO_EXITO)
                 limpiar_formulario([entry_crear_depto_id, entry_crear_depto_nombre, entry_crear_depto_gerente])
             else:
                 lbl_msg_crear_depto.config(text="Error al crear (¿ID Duplicado?)", fg=COLOR_TEXTO_ERROR)
         else:
-            lbl_msg_crear_depto.config(text="El gerente no existe", fg=COLOR_TEXTO_ERROR)
+            lbl_msg_crear_depto.config(text="Error: No hay sesión activa", fg=COLOR_TEXTO_ERROR)
     except ValueError:
         lbl_msg_crear_depto.config(text="IDs deben ser números", fg=COLOR_TEXTO_ERROR)
     except Exception as e:
@@ -510,11 +531,80 @@ def ver_empleados_depto_popup():
     datos = []
     if obj_depto_actual and obj_depto_actual.empleados:
         for emp in obj_depto_actual.empleados:
-            datos.append(f"{emp.idEmpleado} | {emp.nombre} | {emp.correo}")
+            # Formateo con anchos fijos para alineación
+            id_fmt = str(emp.idEmpleado).ljust(5)
+            nombre_fmt = emp.nombre[:20].ljust(20)
+            correo_fmt = (emp.correo or "N/A")[:25].ljust(25)
+            datos.append(f"{id_fmt} | {nombre_fmt} | {correo_fmt}")
     elif not obj_depto_actual:
         datos.append("Seleccione un departamento primero.")
+    else:
+        datos.append("Este departamento no tiene empleados.")
     
-    crear_popup_lista("Empleados del Departamento", datos, "ID | Nombre | Correo")
+    crear_popup_lista("Empleados del Departamento", datos, f"{'ID':<5} | {'Nombre':<20} | {'Correo':<25}")
+
+def ver_todos_departamentos_popup():
+    """Muestra un popup con la lista de todos los departamentos"""
+    try:
+        departamentos = dbFunciones.db_listar_todos_departamentos()
+        datos = []
+        
+        if departamentos and len(departamentos) > 0:
+            for depto in departamentos:
+                # Formateo con anchos fijos para alineación
+                id_fmt = str(depto['idDepartamento']).ljust(5)
+                nombre_fmt = depto['nombre'][:25].ljust(25)
+                gerente_fmt = depto['gerente'][:20].ljust(20)
+                datos.append(f"{id_fmt} | {nombre_fmt} | {gerente_fmt}")
+        else:
+            datos.append("No hay departamentos registrados.")
+        
+        crear_popup_lista("Todos los Departamentos", datos, f"{'ID':<5} | {'Nombre':<25} | {'Gerente':<20}")
+    except Exception as e:
+        crear_popup_lista("Error", [f"Error al cargar departamentos: {str(e)}"], "Error")
+
+def ver_todos_empleados_popup():
+    """Muestra un popup con la lista de todos los empleados"""
+    try:
+        empleados = dbFunciones.db_listar_todos_empleados()
+        datos = []
+        
+        if empleados and len(empleados) > 0:
+            for emp in empleados:
+                # Formateo con anchos fijos para alineación
+                id_fmt = str(emp['idEmpleado']).ljust(5)
+                nombre_fmt = emp['nombre'][:18].ljust(18)
+                correo_fmt = (emp['correo'] or "N/A")[:20].ljust(20)
+                salario_fmt = f"${emp['salario']:>10,.0f}" if emp['salario'] else "N/A".rjust(11)
+                depto_fmt = emp['departamento'][:12].ljust(12)
+                datos.append(f"{id_fmt} | {nombre_fmt} | {correo_fmt} | {salario_fmt} | {depto_fmt}")
+        else:
+            datos.append("No hay empleados registrados.")
+        
+        crear_popup_lista("Todos los Empleados", datos, f"{'ID':<5} | {'Nombre':<18} | {'Correo':<20} | {'Salario':>11} | {'Depto':<12}")
+    except Exception as e:
+        crear_popup_lista("Error", [f"Error al cargar empleados: {str(e)}"], "Error")
+
+def ver_todos_proyectos_popup():
+    """Muestra un popup con la lista de todos los proyectos"""
+    try:
+        proyectos = dbFunciones.db_listar_todos_proyectos()
+        datos = []
+        
+        if proyectos and len(proyectos) > 0:
+            for proy in proyectos:
+                # Formateo con anchos fijos para alineación
+                id_fmt = str(proy['idProyecto']).ljust(5)
+                nombre_fmt = proy['nombre'][:25].ljust(25)
+                fecha_fmt = proy['fechaInicio'].ljust(12)
+                emp_fmt = str(proy['numEmpleados']).rjust(3)
+                datos.append(f"{id_fmt} | {nombre_fmt} | {fecha_fmt} | {emp_fmt}")
+        else:
+            datos.append("No hay proyectos registrados.")
+        
+        crear_popup_lista("Todos los Proyectos", datos, f"{'ID':<5} | {'Nombre':<25} | {'Fecha':<12} | {'#Emp':>3}")
+    except Exception as e:
+        crear_popup_lista("Error", [f"Error al cargar proyectos: {str(e)}"], "Error")
 
 def accion_editar_departamento():
     try:
@@ -677,7 +767,11 @@ def accion_crear_empleado():
             entry_crear_emp_fec.get(),
             int(entry_crear_emp_sal.get())
         )
-        if dbFunciones.db_crear_empleado(entry_crear_emp_rut.get(), nuevo, int(entry_crear_emp_depto.get())):
+        # Departamento es opcional - si está vacío, usar None
+        depto_str = entry_crear_emp_depto.get().strip()
+        id_depto = int(depto_str) if depto_str else None
+        
+        if dbFunciones.db_crear_empleado(entry_crear_emp_rut.get(), nuevo, id_depto):
             lbl_msg_crear_emp.config(text="Empleado Creado", fg=COLOR_TEXTO_EXITO)
             # Limpiar campos aquí si se desea
         else:
@@ -752,7 +846,7 @@ def accion_registrar_horas():
 
 ventana = tk.Tk()
 ventana.title("Sistema de Gestión Empresarial")
-ventana.geometry("550x750")
+ventana.geometry("550x800")
 ventana.config(bg=COLOR_FONDO)
 
 # -----------------------------------------------------------------------------
@@ -906,6 +1000,7 @@ crear_boton(frame_crear_admin, "Volver", lambda: cambiar_frame(frame_gest_admins
 frame_gest_deptos = tk.Frame(ventana, bg=COLOR_FONDO)
 crear_titulo(frame_gest_deptos, "Menú Departamentos")
 
+crear_boton(frame_gest_deptos, "Ver Todos los Departamentos", ver_todos_departamentos_popup)
 crear_boton(frame_gest_deptos, "Crear Departamento", 
             lambda: cambiar_frame(frame_crear_depto, frame_gest_deptos))
 crear_boton(frame_gest_deptos, "Buscar / Ver Departamento", 
@@ -928,7 +1023,9 @@ frame_crear_depto = tk.Frame(ventana, bg=COLOR_FONDO)
 crear_titulo(frame_crear_depto, "Crear Departamento")
 entry_crear_depto_id = crear_input(frame_crear_depto, "ID Departamento:")
 entry_crear_depto_nombre = crear_input(frame_crear_depto, "Nombre:")
-entry_crear_depto_gerente = crear_input(frame_crear_depto, "ID Gerente:")
+entry_crear_depto_gerente = crear_input(frame_crear_depto, "ID Gerente (opcional):")
+tk.Label(frame_crear_depto, text="* Si no se coloca gerente, se asignará como nulo", 
+         font=("Segoe UI", 9, "italic"), fg="gray", bg=COLOR_FONDO).pack(pady=(0, 5))
 lbl_msg_crear_depto = crear_label_mensaje(frame_crear_depto)
 crear_boton(frame_crear_depto, "Guardar", accion_crear_departamento)
 crear_boton(frame_crear_depto, "Volver", lambda: cambiar_frame(frame_gest_deptos, frame_crear_depto, lambda: limpiar_formulario([entry_crear_depto_id, entry_crear_depto_nombre, entry_crear_depto_gerente, lbl_msg_crear_depto])))
@@ -986,6 +1083,7 @@ crear_boton(frame_elim_emp_depto, "Volver", lambda: cambiar_frame(frame_gest_dep
 # -----------------------------------------------------------------------------
 frame_gest_proyectos = tk.Frame(ventana, bg=COLOR_FONDO)
 crear_titulo(frame_gest_proyectos, "Menú Proyectos")
+crear_boton(frame_gest_proyectos, "Ver Todos los Proyectos", ver_todos_proyectos_popup)
 crear_boton(frame_gest_proyectos, "Crear Proyecto", lambda: cambiar_frame(frame_crear_proy, frame_gest_proyectos))
 crear_boton(frame_gest_proyectos, "Buscar / Ver Proyecto", lambda: cambiar_frame(frame_buscar_proy, frame_gest_proyectos))
 crear_boton(frame_gest_proyectos, "Editar Proyecto", lambda: cambiar_frame(frame_editar_proy, frame_gest_proyectos))
@@ -1060,6 +1158,7 @@ crear_boton(frame_elim_emp_proy, "Volver", lambda: cambiar_frame(frame_gest_proy
 # -----------------------------------------------------------------------------
 frame_gest_empleados = tk.Frame(ventana, bg=COLOR_FONDO)
 crear_titulo(frame_gest_empleados, "Menú Empleados")
+crear_boton(frame_gest_empleados, "Ver Todos los Empleados", ver_todos_empleados_popup)
 crear_boton(frame_gest_empleados, "Crear Nuevo Empleado", lambda: cambiar_frame(frame_crear_empleado, frame_gest_empleados))
 crear_boton(frame_gest_empleados, "Buscar Empleado", lambda: cambiar_frame(frame_buscar_empleado, frame_gest_empleados))
 crear_boton(frame_gest_empleados, "Editar Empleado", lambda: cambiar_frame(frame_editar_busqueda_empleado, frame_gest_empleados))
@@ -1076,10 +1175,12 @@ entry_crear_emp_cor = crear_input(frame_crear_empleado, "Correo:")
 entry_crear_emp_id = crear_input(frame_crear_empleado, "ID Ficha Empleado:")
 entry_crear_emp_sal = crear_input(frame_crear_empleado, "Salario:")
 entry_crear_emp_fec = crear_input(frame_crear_empleado, "Fecha Contrato:")
-entry_crear_emp_depto = crear_input(frame_crear_empleado, "ID Depto Inicial:")
+entry_crear_emp_depto = crear_input(frame_crear_empleado, "ID Depto Inicial (opcional):")
+tk.Label(frame_crear_empleado, text="* Si no se coloca departamento, se asignará como nulo", 
+         font=("Segoe UI", 9, "italic"), fg="gray", bg=COLOR_FONDO).pack(pady=(0, 5))
 lbl_msg_crear_emp = crear_label_mensaje(frame_crear_empleado)
 crear_boton(frame_crear_empleado, "Guardar", accion_crear_empleado)
-crear_boton(frame_crear_empleado, "Volver", lambda: cambiar_frame(frame_gest_empleados, frame_crear_empleado, lambda: limpiar_formulario([lbl_msg_crear_emp, entry_crear_emp_rut, entry_crear_emp_nom])))
+crear_boton(frame_crear_empleado, "Volver", lambda: cambiar_frame(frame_gest_empleados, frame_crear_empleado, lambda: limpiar_formulario([lbl_msg_crear_emp, entry_crear_emp_rut, entry_crear_emp_nom, entry_crear_emp_dir, entry_crear_emp_tel, entry_crear_emp_cor, entry_crear_emp_id, entry_crear_emp_sal, entry_crear_emp_fec, entry_crear_emp_depto])))
 
 # Buscar Empleado
 frame_buscar_empleado = tk.Frame(ventana, bg=COLOR_FONDO)
@@ -1116,7 +1217,7 @@ entry_ed_fecha = crear_input(frame_form_editar_empleado, "Fecha (Bloqueado):")
 entry_ed_id_depto = crear_input(frame_form_editar_empleado, "ID Depto (Bloqueado):")
 lbl_msg_ed_emp = crear_label_mensaje(frame_form_editar_empleado)
 crear_boton(frame_form_editar_empleado, "Guardar Cambios", accion_actualizar_empleado)
-crear_boton(frame_form_editar_empleado, "Volver", lambda: cambiar_frame(frame_editar_busqueda_empleado, frame_form_editar_empleado, lambda: limpiar_formulario([lbl_msg_ed_emp])))
+crear_boton(frame_form_editar_empleado, "Volver", lambda: cambiar_frame(frame_editar_busqueda_empleado, frame_form_editar_empleado, lambda: limpiar_formulario([lbl_msg_ed_emp, entry_editar_rut_busqueda, lbl_mensaje_editar_busqueda])))
 
 # -----------------------------------------------------------------------------
 # 7. LOGIN EMPLEADO Y REGISTRO HORAS
