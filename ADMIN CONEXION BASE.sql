@@ -88,12 +88,12 @@ CREATE TABLE administradores
 CREATE TABLE indicadores_registrados
 (
     idIndicadorRegistro INT PRIMARY KEY,
-    nombre_indicador VARCHAR2(50) NOT NULL,  -- (Ej: "UF", "Dólar Observado")
-    valor_indicador FLOAT,                   -- (El valor en sí, ej: 37000.50)
-    fecha_valor DATE,                        -- (La fecha del valor, ej: 10-11-2025)
-    fecha_consulta DATE,                     -- (El día que se guardó, ej: 12-11-2025)
-    sitio_proveedor VARCHAR2(100),           -- (Ej: "mindicador.cl")
-    id_admin_consulta INT,                   -- El usuario/admin que hizo la consulta
+    nombre_indicador VARCHAR2(50) NOT NULL,  
+    valor_indicador FLOAT,                   
+    fecha_valor DATE,                       
+    fecha_consulta DATE,                    )
+    sitio_proveedor VARCHAR2(100),          
+    id_admin_consulta INT,                   
     CONSTRAINT FK_ADMIN_CONSULTA FOREIGN KEY (id_admin_consulta) REFERENCES administradores(idAdmin)
 );
 
