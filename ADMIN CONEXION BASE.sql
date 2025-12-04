@@ -91,7 +91,7 @@ CREATE TABLE indicadores_registrados
     nombre_indicador VARCHAR2(50) NOT NULL,  
     valor_indicador FLOAT,                   
     fecha_valor DATE,                       
-    fecha_consulta DATE,                    )
+    fecha_consulta DATE,                    
     sitio_proveedor VARCHAR2(100),          
     id_admin_consulta INT,                   
     CONSTRAINT FK_ADMIN_CONSULTA FOREIGN KEY (id_admin_consulta) REFERENCES administradores(idAdmin)

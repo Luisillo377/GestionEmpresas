@@ -97,7 +97,7 @@ Crea un archivo `.env` en la raíz del proyecto:
 ```env
 DB_USER=tu_usuario_oracle
 DB_PASSWORD=tu_contraseña
-DB_DSN=localhost:1521/XEPDB1
+DB_DSN=localhost:1521/XE
 ```
 
 ### Paso 5: Ejecutar la Aplicación
@@ -121,7 +121,7 @@ python APP.py
 |----------|-------------|---------|
 | `DB_USER` | Usuario de Oracle | `SYSTEM` |
 | `DB_PASSWORD` | Contraseña de Oracle | `miPassword123` |
-| `DB_DSN` | Data Source Name | `localhost:1521/XEPDB1` |
+| `DB_DSN` | Data Source Name | `localhost:1521/XE` |
 
 ### Personalización de la Interfaz
 
